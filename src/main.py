@@ -1,8 +1,11 @@
 import os
 import asyncio
+
+import websocket
 import websockets
 from websockets import exceptions
-
+from jsonrpc import JSONRPCResponseManager, dispatcher
+import json
 # Set of connected clients
 clients = set()
 
@@ -40,13 +43,28 @@ async def broadcast(message, **kwargs):
             clients.remove(websocket)
 
 
+@dispatcher.add_method
+def send_echo(message):
+    return message
+
+
+@dispatcher.add_method
+def send_message(ids, message):
+    asyncio.get_event_loop().create_task(broadcast(message, except_self=False, self_socket=None))
+    return True
+
+
+async def consume(message, request_websocket):
+    await request_websocket.send(json.dumps(JSONRPCResponseManager.handle(message, dispatcher).data))
+
+
 # Handler for websocket messages
 async def handler(websocket, path):
     # Basically, add any client to set of clients
     clients.add(websocket)
     try:
         async for message in websocket:
-            await broadcast(message, except_self=app_conf['except_self'], self_socket=websocket)
+            await consume(message, websocket)
     # If client disconnects - remove him from set of currently connected clients
     except websockets.exceptions.ConnectionClosedError:
         clients.remove(websocket)
