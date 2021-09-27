@@ -21,12 +21,7 @@ class Test(TestCase):
 
     # Test to ensure that send was called
     def test_broadcast(self):
-        self.loop.run_until_complete(broadcast('test', except_self=False, self_socket=None))
+        self.loop.run_until_complete(broadcast('test'))
         self.ws_mock.send.assert_called()
-
-    # Test to ensure that send was not called, because we except ourself from clients set
-    def test_broadcast2(self):
-        self.loop.run_until_complete(broadcast('test', except_self=True, self_socket=self.ws_mock))
-        self.ws_mock.send.assert_not_called()
 
 

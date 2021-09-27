@@ -1,11 +1,10 @@
 import os
+import json
 import asyncio
-
-import websocket
 import websockets
 from websockets import exceptions
 from jsonrpc import JSONRPCResponseManager, dispatcher
-import json
+
 # Set of connected clients
 clients = set()
 
@@ -15,12 +14,9 @@ app_conf = {}
 
 def config():
     app_config = {
-        "except_self": True,
-        "host": "localhost",
+        "host": None,
         "port": 8765
     }
-    if 'WSS_EXCEPT_SELF' in os.environ:
-        app_config["except_self"] = True if os.environ['WSS_EXCEPT_SELF'].lower() == 'true' else False
     if 'WSS_HOST' in os.environ:
         app_config["host"] = os.environ['WSS_HOST']
     if 'WSS_PORT' in os.environ:
@@ -31,11 +27,6 @@ def config():
 # Message broadcasting, sends a message to all connected clients
 async def broadcast(message, **kwargs):
     clients_copy = clients.copy()
-
-    # If we don`t want to receive our messages - use except_self(bool) argument
-    if kwargs["except_self"]:
-        clients_copy.remove(kwargs["self_socket"])
-
     for websocket in clients_copy:
         try:
             await websocket.send(message)
@@ -45,12 +36,17 @@ async def broadcast(message, **kwargs):
 
 @dispatcher.add_method
 def send_echo(message):
-    return message
+    # Form a JSON to client, not plain text
+    return {"message": message}
 
 
 @dispatcher.add_method
 def send_message(ids, message):
-    asyncio.get_event_loop().create_task(broadcast(message, except_self=False, self_socket=None))
+    asyncio.get_event_loop().create_task(
+        broadcast(
+            json.dumps({"message": message})
+        )
+    )
     return True
 
 
@@ -77,4 +73,5 @@ async def main():
 
 if __name__ == '__main__':
     app_conf = config()
+    print(f"Running at {app_conf['host']} on {app_conf['port']}")
     asyncio.run(main())
